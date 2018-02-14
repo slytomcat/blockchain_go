@@ -31,10 +31,10 @@ func NewProofOfWork(b *Block) *ProofOfWork {
 	data := bytes.Join(
 		[][]byte{
 			b.PrevBlockHash,
-			b.Data,
+			b.HashTransactions(),
 			IntToHex(b.Timestamp),
 			IntToHex(int64(targetBits)),
-			IntToHex(int64(b.Nonce)),
+			IntToHex(int64(nonce)),
 		},
 		[]byte{},
 	)
