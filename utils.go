@@ -8,13 +8,9 @@ import (
 
 // IntToHex converts an int64 to a byte array
 func IntToHex(num int64) []byte {
-	buff := new(bytes.Buffer)
-	err := binary.Write(buff, binary.BigEndian, num)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	return buff.Bytes()
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, uint64(num))
+	return buf
 }
 
 // ReverseBytes reverses a byte array
