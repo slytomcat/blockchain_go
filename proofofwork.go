@@ -54,7 +54,7 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 	res := make(chan powRes)
 	cpus := int64(runtime.NumCPU())
 	var p int64
-	// Continue flag for mining go-routines: 0 mean that search is not finished yet.
+	// Continue flag for mining go-routines: 0 mean that mining is not finished yet.
 	// The flag should treated via atomic.* methods to aviod races
 	var cont int64
 	dl := len(*pow.data) - 8 // Place of the nonce bytes start in the block data image
@@ -63,7 +63,7 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 	// Create maining go-routnes
 	for p = 0; p < cpus; p++ {
 		go func(result chan powRes, nonce int64) {
-			// Make a local copy of block data image to avoid update races between maining go-routines
+			// Make a local copy of block data image to avoid update races between mining go-routines
 			data := make([]byte, dl+8)
 			copy(data, *pow.data)
 
@@ -75,8 +75,10 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 				hash := sha256.Sum256(data)
 
 				if bytes.Compare(hash[:tl], *pow.target) == -1 {
-					result <- powRes{hash[:], int(nonce)}
-					atomic.AddInt64(&cont, 1)
+					// try to set cont flag to stop the rest mining go-routines
+					if atomic.CompareAndSwapInt64(&cont, 0, 1) {
+						result <- powRes{hash[:], int(nonce)} // if flag was set then send result
+					} // if flag was already set - just exit
 					return
 				}
 
