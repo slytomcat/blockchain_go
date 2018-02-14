@@ -15,7 +15,6 @@ const targetBits = 16
 
 // ProofOfWork represents a proof-of-work
 type ProofOfWork struct {
-	name   *[]byte // pow name = block.Data
 	target *[]byte // taget bytes array
 	data   *[]byte // packed block data for hash calculation (nonce is the last 8 bytes)
 	nonce  int64   // nonce from the source block
@@ -34,12 +33,12 @@ func NewProofOfWork(b *Block) *ProofOfWork {
 			b.HashTransactions(),
 			IntToHex(b.Timestamp),
 			IntToHex(int64(targetBits)),
-			IntToHex(int64(nonce)),
+			IntToHex(int64(b.Nonce)),
 		},
 		[]byte{},
 	)
 
-	return &ProofOfWork{&b.Data, &target, &data, int64(b.Nonce)}
+	return &ProofOfWork{&target, &data, int64(b.Nonce)}
 }
 
 // powRes - structure to return hash and nonce from maining go-routines
@@ -51,7 +50,7 @@ type powRes struct {
 // Run performs a proof-of-work
 func (pow *ProofOfWork) Run() (int, []byte) {
 
-	//fmt.Printf("Mining the block containing \"%s\"\n", *pow.name)
+	//fmt.Printf("Mining a new block")
 	res := make(chan powRes)
 	cpus := int64(runtime.NumCPU())
 	var p int64
