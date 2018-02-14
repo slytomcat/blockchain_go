@@ -3,84 +3,99 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
-	"fmt"
+	"encoding/binary"
 	"math"
-	"math/big"
+	"runtime"
+	"sync/atomic"
 )
 
-var (
-	maxNonce = math.MaxInt64
-)
+const maxNonce = math.MaxInt64
 
 const targetBits = 16
 
 // ProofOfWork represents a proof-of-work
 type ProofOfWork struct {
-	block  *Block
-	target *big.Int
+	name   *[]byte // pow name = block.Data
+	target *[]byte // taget bytes array
+	data   *[]byte // packed block data for hash calculation (nonce is the last 8 bytes)
+	nonce  int64   // nonce from the source block
 }
 
 // NewProofOfWork builds and returns a ProofOfWork
 func NewProofOfWork(b *Block) *ProofOfWork {
-	target := big.NewInt(1)
-	target.Lsh(target, uint(256-targetBits))
 
-	pow := &ProofOfWork{b, target}
+	target := make([]byte, (targetBits-1)/8+1)
+	target[len(target)-1] = 128 >> ((targetBits - 1) % 8)
 
-	return pow
-}
-
-func (pow *ProofOfWork) prepareData(nonce int) []byte {
+	// func prepareData() on-lined
 	data := bytes.Join(
 		[][]byte{
-			pow.block.PrevBlockHash,
-			pow.block.HashTransactions(),
-			IntToHex(pow.block.Timestamp),
+			b.PrevBlockHash,
+			b.Data,
+			IntToHex(b.Timestamp),
 			IntToHex(int64(targetBits)),
-			IntToHex(int64(nonce)),
+			IntToHex(int64(b.Nonce)),
 		},
 		[]byte{},
 	)
 
-	return data
+	return &ProofOfWork{&b.Data, &target, &data, int64(b.Nonce)}
+}
+
+// powRes - structure to return hash and nonce from maining go-routines
+type powRes struct {
+	hash  []byte
+	nonce int
 }
 
 // Run performs a proof-of-work
 func (pow *ProofOfWork) Run() (int, []byte) {
-	var hashInt big.Int
-	var hash [32]byte
-	nonce := 0
 
-	fmt.Printf("Mining a new block")
-	for nonce < maxNonce {
-		data := pow.prepareData(nonce)
+	//fmt.Printf("Mining the block containing \"%s\"\n", *pow.name)
+	res := make(chan powRes)
+	cpus := int64(runtime.NumCPU())
+	var p int64
+	// Continue flag for mining go-routines: 0 mean that search is not finished yet.
+	// The flag should treated via atomic.* methods to aviod races
+	var cont int64
+	dl := len(*pow.data) - 8 // Place of the nonce bytes start in the block data image
+	tl := len(*pow.target)
 
-		hash = sha256.Sum256(data)
-		if math.Remainder(float64(nonce), 100000) == 0 {
-			fmt.Printf("\r%x", hash)
-		}
-		hashInt.SetBytes(hash[:])
+	// Create maining go-routnes
+	for p = 0; p < cpus; p++ {
+		go func(result chan powRes, nonce int64) {
+			// Make a local copy of block data image to avoid update races between maining go-routines
+			data := make([]byte, dl+8)
+			copy(data, *pow.data)
 
-		if hashInt.Cmp(pow.target) == -1 {
-			break
-		} else {
-			nonce++
-		}
+			for atomic.LoadInt64(&cont) == 0 && nonce < maxNonce {
+
+				// Put new nonce into data image
+				binary.BigEndian.PutUint64(data[dl:], uint64(nonce))
+
+				hash := sha256.Sum256(data)
+
+				if bytes.Compare(hash[:tl], *pow.target) == -1 {
+					result <- powRes{hash[:], int(nonce)}
+					atomic.AddInt64(&cont, 1)
+					return
+				}
+
+				nonce += cpus // New nonce calculated with step equal to CPU count
+			}
+		}(res, p)
 	}
-	fmt.Print("\n\n")
+	r := <-res
 
-	return nonce, hash[:]
+	return r.nonce, r.hash
 }
 
 // Validate validates block's PoW
 func (pow *ProofOfWork) Validate() bool {
-	var hashInt big.Int
 
-	data := pow.prepareData(pow.block.Nonce)
-	hash := sha256.Sum256(data)
-	hashInt.SetBytes(hash[:])
+	binary.BigEndian.PutUint64((*pow.data)[len(*pow.data)-8:], uint64(pow.nonce))
 
-	isValid := hashInt.Cmp(pow.target) == -1
+	hash := sha256.Sum256(*pow.data)
 
-	return isValid
+	return bytes.Compare(hash[:], *pow.target) == -1
 }
