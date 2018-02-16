@@ -80,40 +80,34 @@ func (pow *ProofOfWorkT) Validate() bool {
 	return isValid
 }
 
-var testBlock = &Block{time.Now().Unix(), []*Transaction{NewCoinbaseTX("some@address.country", "Test block")}, []byte{}, []byte{}, 0, 0}
+var testBlock = &Block{time.Now().Unix(), []*Transaction{NewCoinbaseTX(`13Uu7B1vDP4ViXqHFsWtbraM3EfQ3UkWXt`, "Test block")}, []byte{}, []byte{}, 0, 0}
 
 func BenchmarkPowT(b *testing.B) {
 	//fmt.Printf("\n%#v", block)
 	pow := NewProofOfWorkT(testBlock)
 	for i := 0; i < b.N; i++ {
-		testBlock.Nonce, testBlock.Hash = pow.Run()
-		if !NewProofOfWorkT(testBlock).Validate() {
-			b.Errorf("\nPowT is not valid %d, %x\n", testBlock.Nonce, testBlock.Hash)
-		}
+		_, _ = pow.Run()
 	}
 }
 
 func BenchmarkPow(b *testing.B) {
 	pow := NewProofOfWork(testBlock)
 	for i := 0; i < b.N; i++ {
-		testBlock.Nonce, testBlock.Hash = pow.Run()
-		if !NewProofOfWork(testBlock).Validate() {
-			b.Errorf("\nPowT is not valid %d, %x\n", testBlock.Nonce, testBlock.Hash)
-		}
+		_, _ = pow.Run()
 	}
 }
 
 func TestPow(t *testing.T) {
 	testBlock.Nonce, testBlock.Hash = NewProofOfWork(testBlock).Run()
 	if !NewProofOfWork(testBlock).Validate() {
-		t.Errorf("\nPow is not valid %d, %x\n", testBlock.Nonce, testBlock.Hash)
+		t.Errorf("\nPOW is not valid %d, %x\n", testBlock.Nonce, testBlock.Hash)
 	}
 }
 
 func TestPowT(t *testing.T) {
 	testBlock.Nonce, testBlock.Hash = NewProofOfWorkT(testBlock).Run()
 	if !NewProofOfWorkT(testBlock).Validate() {
-		t.Errorf("\nPow is not valid %d, %x\n", testBlock.Nonce, testBlock.Hash)
+		t.Errorf("\nPOW is not valid %d, %x\n", testBlock.Nonce, testBlock.Hash)
 	}
 }
 
@@ -127,7 +121,7 @@ func TestPows(t *testing.T) {
 		bl1.Nonce, bl1.Hash = NewProofOfWork(&bl1).Run()
 
 		if bl0.Nonce != bl1.Nonce {
-			t.Logf("\n%d: Nonces/hashes not much \nOrig: %d, %x\nNew:  %d, %x\n", i, bl0.Nonce, bl0.Hash, bl1.Nonce, bl1.Hash)
+			t.Logf("\n%d: Nonces/hashes not much \nOrig: %d, %x \nNew:  %d, %x\n", i, bl0.Nonce, bl0.Hash, bl1.Nonce, bl1.Hash)
 		}
 	}
 }
