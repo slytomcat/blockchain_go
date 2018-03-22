@@ -76,7 +76,7 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 
 				dg.Reset()
 				dg.Write(data)
-				hash := dg.Sum([]byte{})
+				hash := dg.Sum(nil)
 
 				if bytes.Compare(hash[:tl], *pow.target) == -1 {
 					// try to set continue flag to stop the rest mining go-routines
